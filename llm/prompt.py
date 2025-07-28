@@ -9,7 +9,6 @@ SYSTEM_PROMPT = """
 
 [예시 입력]
 RSI가 30 밑에서 반등하거나, SMA50이 SMA200을 상향 돌파하면 50% 매수. RSI가 70 이상이면 전량 매도.
-
 [예시 출력]
 {
   "strategy_title": "RSI+SMA 복합 매매",
@@ -52,6 +51,65 @@ RSI가 30 밑에서 반등하거나, SMA50이 SMA200을 상향 돌파하면 50% 
           "indicator": "RSI",
           "operator": ">=",
           "value": 70
+        }
+      ],
+      "action": "sell",
+      "position_size": 1.0
+    }
+  ]
+}
+[예시 입력]
+"볼린저밴드 하단을 터치하고 RSI가 20 이하에서 상승 전환하며 MACD가 시그널선을 상향돌파하면 매수. 볼린저밴드 상단 돌파하거나 RSI 80 이상이면 매도."
+[예시 출력]
+{
+  "strategy_title": "볼린저밴드+RSI+MACD 삼중필터 매매",
+  "entries": [
+    {
+      "logic": "AND",
+      "conditions": [
+        {
+          "indicator": "BBANDS_LOWER",
+          "params": {"timeperiod": 20, "nbdevdn": 2},
+          "operator": "<=",
+          "value": 0,
+          "trend": "up"
+        },
+        {
+          "indicator": "RSI",
+          "params": {"timeperiod": 14},
+          "operator": "<=",
+          "value": 20,
+          "trend": "up"
+        },
+        {
+          "indicator": "MACD",
+          "params": {"fastperiod": 12, "slowperiod": 26, "signalperiod": 9},
+          "operator": "crosses_above",
+          "compare_to": {
+            "indicator": "MACD_SIGNAL",
+            "params": {"fastperiod": 12, "slowperiod": 26, "signalperiod": 9}
+          }
+        }
+      ],
+      "action": "buy",
+      "position_size": 1.0
+    }
+  ],
+  "exits": [
+    {
+      "logic": "OR",
+      "conditions": [
+        {
+          "indicator": "BBANDS_UPPER",
+          "params": {"timeperiod": 20, "nbdevup": 2},
+          "operator": ">=",
+          "value": 0
+        },
+        {
+          "indicator": "RSI",
+          "params": {"timeperiod": 14},
+          "operator": ">=",
+          "value": 80
         }
       ],
       "action": "sell",
@@ -190,7 +248,54 @@ async def generate_dsl(client, natural_text: str) -> StrategyDSL:
     function_args_str = response.choices[0].message.function_call.arguments
 
     dsl_json = json.loads(function_args_str)
-
+    # dsl_json = json.loads("""
+    # {
+    #   "strategy_title": "이평선+RSI+MACD 매매",
+    #   "entries": [
+    #     {
+    #       "logic": "AND",
+    #       "conditions": [
+    #         {
+    #           "indicator": "SMA",
+    #           "params": {
+    #             "timeperiod": 20
+    #           },
+    #           "operator": "crosses_above",
+    #           "compare_to": "SMA60"
+    #         },
+    #         {
+    #           "indicator": "RSI",
+    #           "operator": "<=",
+    #           "value": 60,
+    #           "trend": "up"
+    #         }
+    #       ],
+    #       "action": "buy",
+    #       "position_size": 1.0
+    #     }
+    #   ],
+    #   "exits": [
+    #     {
+    #       "logic": "OR",
+    #       "conditions": [
+    #         {
+    #           "indicator": "RSI",
+    #           "operator": ">=",
+    #           "value": 70
+    #         },
+    #         {
+    #           "indicator": "MACD",
+    #           "operator": "trend_change",
+    #           "trend": "down"
+    #         }
+    #       ],
+    #       "action": "sell",
+    #       "position_size": 1.0
+    #     }
+    #   ]
+    # }""")
+    print("+++++json++++++")
+    print(dsl_json)
     # 최종 DSL 객체로 변환
     dsl_obj = parse_strategy_dsl(dsl_json)
 

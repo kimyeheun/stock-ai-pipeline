@@ -5,9 +5,9 @@ import os
 import yfinance as yf
 from dotenv import load_dotenv, find_dotenv
 from openai import AsyncOpenAI
-
+from dsl_interpreter_2 import dsl_to_code
 from prompt import generate_dsl
-
+import time
 
 async def main():
     # 1. 주식 데이터 다운로드
@@ -16,21 +16,25 @@ async def main():
     df.rename(columns=str.lower, inplace=True)
 
     # 2. 사용자 입력 전략
-    natural_text = "RSI가 30 밑에서 반등. MACD 우상향이면 매수"
+    # natural_text = "RSI가 30 밑에서 반등. MACD 우상향이면 매수"
+    natural_text = "단기 이평선이 장기 이평선을 상향 돌파하고 RSI가 60 이하에서 반등하면 매수, RSI가 70 이상이거나 MACD가 하락 전환하면 매도."
 
     # 3. LLM → DSL 파싱
+    s = time.time()
     dsl = await generate_dsl(client, natural_text)
-    print("=====DSL=====")
+    e = time.time()
+
+    print(f"=====DSL==== {e-s} =")
     print(dsl)
     print()
-    #
-    #
-    # # 4. DSL → Python 전략 코드 생성
-    # code = generate_dsl(dsl.conditions, df_var='df')
-    #
-    # print("🔧 생성된 전략 코드:\n")
-    # print(code)
-    #
+
+    # 4. DSL → Python 전략 코드 생성
+    s = time.time()
+    code = dsl_to_code(dsl, df_var='df')
+    e = time.time()
+    print(f"🔧 생성된 전략 코드: {e-s}\n")
+    print(code)
+
     # # 5. 실행 환경 구성 및 코드 실행
     # exec_env = {'talib': talib, 'df': df, 'pd': pd}
     # exec(code, exec_env)
