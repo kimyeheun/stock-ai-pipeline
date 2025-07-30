@@ -95,11 +95,11 @@ def create_buy_sell_hold_labels(df: pd.DataFrame, future_window: int = 10, thres
         pct_increase = (future_max - close[i]) / close[i]
         pct_decrease = (future_min - close[i]) / close[i]
         if pct_increase >= threshold:
-            labels.append(1)
+            labels.append(1) # Buy
         elif pct_decrease <= -threshold:
-            labels.append(2)
+            labels.append(2) # Sell
         else:
-            labels.append(0)
+            labels.append(0) # Stay
     df['Label'] = labels
     df = df.dropna(subset=['Label'])
     df.loc[:, 'Label'] = df['Label'].astype(int)
@@ -130,7 +130,6 @@ def scale_features_and_save(X: np.ndarray, y: np.ndarray, scaler_path: str, X_pa
 
 if __name__ == "__main__":
     config = DataPreProcessingConfig
-
     # 1. Load data
     os.makedirs(config.RAW_DATA_DIR, exist_ok=True)
     os.makedirs(config.DATA_DIR, exist_ok=True)

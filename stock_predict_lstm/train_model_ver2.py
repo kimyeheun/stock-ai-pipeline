@@ -5,6 +5,7 @@ import joblib
 from sklearn.preprocessing import StandardScaler
 import wandb
 from Model import MaskAwareLSTM
+from torch.utils.data import TensorDataset, DataLoader
 
 
 class TrainingConfig:
@@ -18,11 +19,10 @@ class TrainingConfig:
     CLIP_GRAD_NORM = 1.0
     TEST_SIZE = 0.2
     SHUFFLE_DATA = True
-    SELECTED_FEATURES = ["Open", "High", "Low", "Close", "Volume", "RSI", "MACD", "BB_UPPER", "BB_LOWER", "MOM", "CCI"]
 
-class DataPreProcessingConfig:
-    FEATURES = ["Open", "High", "Low", "Close", "Volume",
-                "RSI", "MACD", "MACD_SIGNAL", "BB_UPPER", "BB_LOWER", "MOM", "CCI"]
+    PRICE_FEATURES = ["Open", "High", "Low", "Close", "Volume"]
+    INDICATOR_FEATURES = ["RSI", "MACD", "MACD_SIGNAL", "BB_UPPER", "BB_LOWER", "MOM", "CCI"]
+    ALL_FEATURES = PRICE_FEATURES + INDICATOR_FEATURES
 
 
 def load_data(x_path, y_path):
@@ -41,19 +41,15 @@ def split_data(X, y, test_size=0.2, shuffle=True):
     train_idx, val_idx = indices[:split], indices[split:]
     return X[train_idx], X[val_idx], y[train_idx], y[val_idx]
 
-def create_dataloaders(X_train, y_train, X_val, y_val, batch_size=32):
-    # mask 생성: NaN 위치를 0, 사용 가능한 feature는 1
-    train_mask = ~np.isnan(X_train)
-    val_mask = ~np.isnan(X_val)
-    from torch.utils.data import TensorDataset, DataLoader
+def create_dataloaders(X_train, mask_train, y_train, X_val, mask_val, y_val, batch_size=32):
     train_ds = TensorDataset(
         torch.tensor(X_train, dtype=torch.float32),
-        torch.tensor(train_mask, dtype=torch.float32),
+        torch.tensor(mask_train, dtype=torch.float32),
         torch.tensor(y_train, dtype=torch.long)
     )
     val_ds = TensorDataset(
         torch.tensor(X_val, dtype=torch.float32),
-        torch.tensor(val_mask, dtype=torch.float32),
+        torch.tensor(mask_val, dtype=torch.float32),
         torch.tensor(y_val, dtype=torch.long)
     )
     return (
@@ -92,6 +88,8 @@ def train_and_validate_model(model, train_loader, val_loader, criterion, optimiz
             for xb, mask, yb in val_loader:
                 xb, mask, yb = xb.to(device), mask.to(device), yb.to(device)
                 out = model(xb, mask)
+                print(out)
+                print(yb)
                 loss = criterion(out, yb)
                 val_loss += loss.item() * xb.size(0)
                 val_correct += (out.argmax(1) == yb).sum().item()
@@ -107,45 +105,44 @@ def save_model(model, path):
     print(f"Model saved to {path}")
 
 
-# --- 메인 실행부 ---
+
 if __name__ == "__main__":
     # 1. Load Data
-    X, y = load_data(TrainingConfig.X_PATH, TrainingConfig.Y_PATH)
-    X = mask_features(X, DataPreProcessingConfig.FEATURES, TrainingConfig.SELECTED_FEATURES)
+    X_raw, y = load_data(TrainingConfig.X_PATH, TrainingConfig.Y_PATH)
+    print(len(TrainingConfig.PRICE_FEATURES) == X_raw.shape[2], "ALL_FEATURES와 X_raw의 feature 수 mismatch")
 
+    # 2. Feature selection
+    X = mask_features(X_raw, TrainingConfig.ALL_FEATURES, TrainingConfig.ALL_FEATURES)
+    mask = mask_features(~np.isnan(X_raw), TrainingConfig.ALL_FEATURES, TrainingConfig.ALL_FEATURES).astype(float)
+
+    # 3. 가격 정보는 무조건 마스크 유지
+    for feat in TrainingConfig.PRICE_FEATURES:
+        idx = TrainingConfig.ALL_FEATURES.index(feat)
+        mask[:, :, idx] = 1.0
+
+    # 4. Scaling
     scaler = StandardScaler()
     X = scaler.fit_transform(X.reshape(-1, X.shape[2])).reshape(X.shape)
-
-    # 4. Save masked scaler
     joblib.dump(scaler, TrainingConfig.SCALER_PATH)
 
-    # Determine input and output dimensions from result
-    input_dim = X.shape[2]
-    output_dim = len(np.unique(y))  # Assuming labels are 0, 1, 2 for Buy, Sell, Hold
-    print(np.unique(y))  # y의 유니크값 확인
-    print(f"y.min={y.min()}, y.max={y.max()}, output_dim={output_dim}")
+    # 5. Split
+    X_train, X_val, y_train, y_val = split_data(X, y, test_size=TrainingConfig.TEST_SIZE, shuffle=TrainingConfig.SHUFFLE_DATA)
+    mask_train, mask_val, _, _ = split_data(mask, y, test_size=TrainingConfig.TEST_SIZE, shuffle=TrainingConfig.SHUFFLE_DATA)
 
-    # 2. Split Data
-    X_train, X_val, y_train, y_val = split_data(
-        X, y,
-        test_size=TrainingConfig.TEST_SIZE,
-        shuffle=TrainingConfig.SHUFFLE_DATA
-    )
     print("학습셋 라벨 분포:", np.bincount(y_train.astype(int)))
 
-    # 3. Create DataLoaders
-    train_loader, val_loader = create_dataloaders(
-        X_train, y_train, X_val, y_val,
-        batch_size=TrainingConfig.BATCH_SIZE
-    )
+    # 6. DataLoader
+    train_loader, val_loader = create_dataloaders(X_train, mask_train, y_train, X_val, mask_val, y_val, batch_size=TrainingConfig.BATCH_SIZE)
 
-    # 4. Initialize Model, Loss, Optimizer
+    # 7. Model Init
+    input_dim = X.shape[2]
+    output_dim = len(np.unique(y))
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model, criterion, optimizer = initialize_model(input_dim, output_dim, device)
 
-    # 4.5. Initialize wandb
+    # 8. wandb
     wandb.init(
-        project="lstm-stock-classifier-100",
+        project="lstm-stock-classifier-refactored",
         config={
             "epochs": TrainingConfig.EPOCHS,
             "batch_size": TrainingConfig.BATCH_SIZE,
@@ -154,19 +151,12 @@ if __name__ == "__main__":
             "model": "MaskAwareLSTM",
             "input_dim": input_dim,
             "output_dim": output_dim,
-            "selected_features": TrainingConfig.SELECTED_FEATURES,
+            "selected_features": TrainingConfig.ALL_FEATURES,
         }
     )
 
-    # 5. Train Model
-    train_and_validate_model(
-        model,
-        train_loader, val_loader,
-        criterion, optimizer,
-        epochs=TrainingConfig.EPOCHS,
-        device=device,
-        clip_grad_norm=TrainingConfig.CLIP_GRAD_NORM
-    )
+    # 9. Train
+    train_and_validate_model(model, train_loader, val_loader, criterion, optimizer, TrainingConfig.EPOCHS, device, TrainingConfig.CLIP_GRAD_NORM)
 
-    # 6. Save Model
+    # 10. Save
     save_model(model, TrainingConfig.MODEL_PATH)

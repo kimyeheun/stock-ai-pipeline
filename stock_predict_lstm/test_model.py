@@ -8,7 +8,7 @@ import talib
 import torch
 
 from Model import MaskAwareLSTM
-from train_model import TrainingConfig
+from train_model_ver2 import TrainingConfig
 
 
 def load_csv(file_path):
@@ -112,18 +112,27 @@ def strategy_rsi_rebound_model_based(stock_data, x_axis, indicators, model, scal
     sell_markers = []
     trades = 0
 
-    selected_features = [f.lower() for f in TrainingConfig.SELECTED_FEATURES]
+    selected_features = [f.lower() for f in TrainingConfig.ALL_FEATURES]
     valid_idx = []
     X = []
+    mask = []
+
     for i in range(window_size, len(stock_data)):
         window = stock_data[selected_features].iloc[i - window_size:i].values
         X.append(window)
+        m = (~np.isnan(window)).astype(np.float32)
+
+        # 가격 피처는 항상 마스크 유지
+        for feat in TrainingConfig.PRICE_FEATURES:
+            idx = selected_features.index(feat.lower())
+            m[:, idx] = 1.0
+        mask.append(m)
+
         valid_idx.append(i)
+
     X = np.array(X)
+    mask = np.array(mask)
     X = scaler.transform(X.reshape(-1, X.shape[2])).reshape(X.shape)
-    mask = np.ones_like(X, dtype=np.float32)
-    print("X stats:", X.min(), X.max(), X.mean())
-    print("mask stats:", mask.min(), mask.max(), mask.mean())
 
     model.eval()
     device = next(model.parameters()).device
@@ -133,20 +142,11 @@ def strategy_rsi_rebound_model_based(stock_data, x_axis, indicators, model, scal
         outputs = model(inputs, masks)
         preds = torch.argmax(outputs, dim=1).cpu().numpy()
 
-    print("Sample logits (first 5):", outputs[:5].cpu().numpy())
-    print("Sample preds (first 20):", preds[:20])
-    print("Pred value counts:", np.bincount(preds))
-
     rsi = indicators.get("rsi")
-    count = 0
-    for i in range(1, len(rsi)):
-        if pd.notna(rsi[i - 1]) and pd.notna(rsi[i]) and rsi[i - 1] < 30 and rsi[i] >= 30:
-            count += 1
-    print("RSI 반등 구간:", count)
 
-    for idx, i in enumerate(valid_idx[1:], 1):
+    for idx, i in enumerate(valid_idx[1:], 1):  # prev rsi 확인 위해 1부터 시작
         price = stock_data["close"].iloc[i]
-        rsi_prev = rsi.iloc[i-1]
+        rsi_prev = rsi.iloc[i - 1]
         rsi_curr = rsi.iloc[i]
         pred = preds[idx]
 
@@ -186,6 +186,8 @@ def strategy_rsi_rebound_model_based(stock_data, x_axis, indicators, model, scal
     }
 
 def strategy_model_based(stock_data, x_axis, model, scaler, window_size=30):
+    print("MODEL BASED===============================")
+
     portfolio = 100000
     cash = portfolio
     shares = 0
@@ -195,17 +197,38 @@ def strategy_model_based(stock_data, x_axis, model, scaler, window_size=30):
     sell_markers = []
     trades = 0
 
-    selected_features = [f.lower() for f in TrainingConfig.SELECTED_FEATURES]
+    selected_features = [f.lower() for f in TrainingConfig.ALL_FEATURES]
+    print(selected_features)
+
     valid_idx = []
     X = []
+    mask = []
 
     for i in range(window_size, len(stock_data)):
         window = stock_data[selected_features].iloc[i - window_size:i].values
         X.append(window)
+        m = (~np.isnan(window)).astype(np.float32)
+
+        for feat in TrainingConfig.PRICE_FEATURES:
+            idx = selected_features.index(feat.lower())
+            m[:, idx] = 1.0
+        mask.append(m)
+
         valid_idx.append(i)
+
     X = np.array(X)
-    X = scaler.transform(X.reshape(-1, X.shape[2])).reshape(X.shape)
-    mask = np.ones_like(X, dtype=np.float32)
+    mask = ~np.isnan(X)
+    price_features_lower = [f.lower() for f in TrainingConfig.PRICE_FEATURES]
+    for feat in price_features_lower:
+        if feat in selected_features:
+            idx = selected_features.index(feat)
+            mask[:, :, idx] = 1.0
+    X[np.isnan(X)] = 0
+    X = scaler.fit_transform(X.reshape(-1, X.shape[2])).reshape(X.shape)
+
+    # NOTE : 마스킹 처리
+    print("X stats:", X.min(), X.max(), X.mean())
+    print("Mask ratio per feature:", mask.mean(axis=(0, 1)))
 
     model.eval()
     device = next(model.parameters()).device
@@ -215,13 +238,14 @@ def strategy_model_based(stock_data, x_axis, model, scaler, window_size=30):
         outputs = model(inputs, masks)
         preds = torch.argmax(outputs, dim=1).cpu().numpy()
 
+    # NOTE : 예측 결과 분포 확인
+    print("Pred value counts:", np.bincount(preds))
 
     for idx, i in enumerate(valid_idx):
         price = stock_data["close"].iloc[i]
         pred = preds[idx]
 
-        # 모델이 Buy라고 예측하고 현재 포지션이 없으면 매수
-        if not in_trade and pred == 0:
+        if not in_trade and pred == 1:
             shares = cash / price
             cash = 0
             in_trade = True
@@ -232,8 +256,7 @@ def strategy_model_based(stock_data, x_axis, model, scaler, window_size=30):
                 text=f"Buy(Model): {price:.2f}",
                 type='buy'
             ))
-        # 모델이 Sell이라고 예측하고 현재 포지션이 있으면 매도
-        elif in_trade and pred == 1:
+        elif in_trade and pred == 2:
             cash = shares * price
             shares = 0
             in_trade = False
@@ -245,7 +268,6 @@ def strategy_model_based(stock_data, x_axis, model, scaler, window_size=30):
                 text=f"Sell(Model): {price:.2f}<br>Profit: {profit:.2f}",
                 type='sell'
             ))
-
     final_value = cash + shares * stock_data["close"].iloc[-1]
     profit_ratio = (final_value - portfolio) / portfolio
     return {
@@ -307,6 +329,7 @@ if __name__ == '__main__':
     file_path = "./raw_data/stock_data_from_api_kakao.csv"
     start = time.time()
     x_axis, stock_data = load_csv(file_path)
+    print("컬럼 목록:", stock_data.columns.tolist())
 
     # RSI만 계산
     indicators = calc_talib(stock_data, ["rsi"])
@@ -314,12 +337,11 @@ if __name__ == '__main__':
 
     # 모델 준비
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    selected_features = [f.lower() for f in TrainingConfig.SELECTED_FEATURES]
-    stock_data[selected_features] = stock_data[selected_features].fillna(0)
+
+    # 모델 준비 이후, model.load_state_dict(state_dict) 다음에 이 코드 추가:
+    selected_features = [f.lower() for f in TrainingConfig.ALL_FEATURES]
 
     print("선택 피처:", selected_features)
-    print(stock_data[selected_features].head(50))
-    print(stock_data[selected_features].isna().sum())
 
     # MaskAwareLSTM의 인자: input_dim, hidden_dim, num_layers=2, dropout=0.3
     model = MaskAwareLSTM(input_dim=len(selected_features), hidden_dim=64, output_dim=3, num_layers=2, dropout=0.3).to(device)
@@ -328,8 +350,11 @@ if __name__ == '__main__':
     state_dict = torch.load("./models/lstm_classifier.pt", map_location=device)
     print("state_dict keys:", list(state_dict.keys())[:10])
 
-    scaler = joblib.load("./models/scaler_masked.pkl")  # StandardScaler 저장 위치 주의!
+    scaler = joblib.load("./models/scaler_masked.pkl")
     model.load_state_dict(state_dict)
+    print("selected_features:", selected_features)
+    print("scaler.mean_[:5]:", scaler.mean_[:5])
+    print("scaler.var_[:5]:", scaler.var_[:5])
 
     model_result = strategy_rsi_rebound_model_based(stock_data, x_axis, indicators, model, scaler, window_size=30)
     model_only_result = strategy_model_based(stock_data, x_axis, model, scaler, window_size=30)
