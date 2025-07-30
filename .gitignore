@@ -11,3 +11,5 @@ __pycache__/
 dist/
 build/
 *.log
+*/__pycache__/
+*/wandb/
