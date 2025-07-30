@@ -1,7 +1,6 @@
 from dsl import *
 import re
 
-
 INDICATOR_FUNC_MAP = {
     "RSI": {
         "func": "talib.RSI",
@@ -73,7 +72,7 @@ def indicator_to_code(indicator, params=None, var_prefix=""):
     input_args = ", ".join([f"df['{col}']" for col in inputs])
 
     if base_indicator == "MACD":
-        return f"macd, macd_signal, macd_hist = {func}({input_args}, {param_str})"
+        return f"macd_line, macd_signal, macd_hist = {func}({input_args}, {param_str})"
     if param_str:
         return f"{var_prefix}{indicator.lower()} = {func}({input_args}, {param_str})"
     else:
@@ -109,13 +108,13 @@ def dsl_to_code(dsl: StrategyDSL, df_var='df') -> str:
             return f"({var_name} {op} {val})" if op else f"({var_name} == 100)"
 
         if ind == "MACD" and op == "rising":
-            return f"(macd > macd_signal)"
+            return f"(macd_line > macd_signal)"
         if ind == "MACD" and op == "trend_change" and trend == "down":
             if ind not in computed_indicators:
                 code_lines.append(
-                    "macd, macd_signal, macd_hist = talib.MACD(df['close'], fastperiod=12, slowperiod=26, signalperiod=9)")
+                    "macd_line, macd_signal, macd_hist = talib.MACD(df['close'], fastperiod=12, slowperiod=26, signalperiod=9)")
                 computed_indicators.add(ind)
-            return "(macd< macd.shift(1)) & (macd < macd_signal)"
+            return "(macd_line< macd.shift(1)) & (macd_line < macd_signal)"
 
         base = None
         if op in ["<", ">", "<=", ">=", "==", "!="]:
