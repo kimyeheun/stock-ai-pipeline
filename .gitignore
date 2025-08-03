@@ -15,3 +15,10 @@ build/
 */wandb/
 */key.txt
 *.npy
+*/data/
+*/X_stock.npy
+*/models
+*/results
+key.txt
+*.pt
+*/wandb/

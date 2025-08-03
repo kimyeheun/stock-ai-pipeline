@@ -6,13 +6,15 @@ from sklearn.preprocessing import StandardScaler
 import wandb
 from Model import MaskAwareLSTM
 from torch.utils.data import TensorDataset, DataLoader
+from tqdm import tqdm
+from Dataset import NpyDataset
 
 
 class TrainingConfig:
-    X_PATH = "./data/X_stock.npy"
-    Y_PATH = "./data/y_stock.npy"
-    SCALER_PATH = "./models/scaler_masked.pkl"
-    MODEL_PATH = "./models/lstm_classifier.pt"
+    X_PATH = "../data_collection/data/X_stock.npy"
+    Y_PATH = "../data_collection/data/y_stock.npy"
+    SCALER_PATH = "../data_collection/models/scaler.pkl"
+    MODEL_PATH = "models/lstm_classifier.pt"
     EPOCHS = 100
     BATCH_SIZE = 32
     LEARNING_RATE = 1e-3
@@ -109,30 +111,80 @@ def save_model(model, path):
 if __name__ == "__main__":
     # 1. Load Data
     X_raw, y = load_data(TrainingConfig.X_PATH, TrainingConfig.Y_PATH)
-    print(len(TrainingConfig.PRICE_FEATURES) == X_raw.shape[2], "ALL_FEATURES와 X_raw의 feature 수 mismatch")
-
+    print(X_raw.shape)
+    print(y.shape)
+    print(len(TrainingConfig.ALL_FEATURES) == X_raw.shape[2])
+    
     # 2. Feature selection
-    X = mask_features(X_raw, TrainingConfig.ALL_FEATURES, TrainingConfig.ALL_FEATURES)
-    mask = mask_features(~np.isnan(X_raw), TrainingConfig.ALL_FEATURES, TrainingConfig.ALL_FEATURES).astype(float)
+    X = np.empty_like(X_raw)
+    mask = np.empty_like(X_raw, dtype=np.float32)
 
-    # 3. 가격 정보는 무조건 마스크 유지
-    for feat in TrainingConfig.PRICE_FEATURES:
-        idx = TrainingConfig.ALL_FEATURES.index(feat)
-        mask[:, :, idx] = 1.0
+    batch_size = 100_000
+    N = X_raw.shape[0]
+
+    for i in tqdm(range(0, N, batch_size), desc="Feature masking"):
+        # feature selection (mask_features가 슬라이싱 지원 가정)
+        X[i:i + batch_size] = mask_features(
+            X_raw[i:i + batch_size],
+            TrainingConfig.ALL_FEATURES,
+            TrainingConfig.ALL_FEATURES
+        )
+        # mask 생성
+        mask[i:i + batch_size] = mask_features(
+            ~np.isnan(X_raw[i:i + batch_size]),
+            TrainingConfig.ALL_FEATURES,
+            TrainingConfig.ALL_FEATURES
+        ).astype(np.float32)
+
+    print("End Masking")
 
     # 4. Scaling
+    # ===============================================
     scaler = StandardScaler()
-    X = scaler.fit_transform(X.reshape(-1, X.shape[2])).reshape(X.shape)
+
+    X = X.astype(np.float32)
+    N, T, F = X.shape
+    batch_size = 100
+
+    # 1. fit (배치별로)
+    for i in tqdm(range(0, N, batch_size), desc="Scaler partial_fit"):
+        X_batch = X[i:i + batch_size].reshape(-1, F)
+        scaler.partial_fit(X_batch)
+
+    # 2. transform (배치별로)
+    X_scaled = np.empty_like(X)
+    for i in tqdm(range(0, N, batch_size), desc="Scaler transform"):
+        X_batch = X[i:i + batch_size].reshape(-1, F)
+        X_scaled_batch = scaler.transform(X_batch).reshape(-1, T, F)
+        X_scaled[i:i + batch_size] = X_scaled_batch
+
     joblib.dump(scaler, TrainingConfig.SCALER_PATH)
+
+    np.save("./train_data/X_scaled.npy", X_scaled)
+    np.save("./train_data/mask.npy", mask)
+    np.save("./train_data/y.npy", y)
+    del X_scaled, mask, y
+    # ===============================================
 
     # 5. Split
     X_train, X_val, y_train, y_val = split_data(X, y, test_size=TrainingConfig.TEST_SIZE, shuffle=TrainingConfig.SHUFFLE_DATA)
     mask_train, mask_val, _, _ = split_data(mask, y, test_size=TrainingConfig.TEST_SIZE, shuffle=TrainingConfig.SHUFFLE_DATA)
-
     print("학습셋 라벨 분포:", np.bincount(y_train.astype(int)))
 
+    np.save("./train_data/X_train.npy", X_train)
+    np.save("./train_data/mask_train.npy", mask_train)
+    np.save("./train_data/y_train.npy", y_train)
+    np.save("./train_data/X_val.npy", X_val)
+    np.save("./train_data/mask_val.npy", mask_val)
+    np.save("./train_data/y_val.npy", y_val)
+    del X_train, mask_train, y_train, X_val, mask_val, y_val
+
     # 6. DataLoader
-    train_loader, val_loader = create_dataloaders(X_train, mask_train, y_train, X_val, mask_val, y_val, batch_size=TrainingConfig.BATCH_SIZE)
+    train_dataset = NpyDataset("X_train.npy", "mask_train.npy", "y_train.npy")
+    val_dataset = NpyDataset("X_val.npy", "mask_val.npy", "y_val.npy")
+    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False)
+    # train_loader, val_loader = create_dataloaders(X_train, mask_train, y_train, X_val, mask_val, y_val, batch_size=TrainingConfig.BATCH_SIZE)
 
     # 7. Model Init
     input_dim = X.shape[2]
@@ -142,7 +194,7 @@ if __name__ == "__main__":
 
     # 8. wandb
     wandb.init(
-        project="lstm-stock-classifier-refactored",
+        project="lstm-stock",
         config={
             "epochs": TrainingConfig.EPOCHS,
             "batch_size": TrainingConfig.BATCH_SIZE,

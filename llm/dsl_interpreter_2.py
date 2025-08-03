@@ -1,4 +1,4 @@
-from dsl import *
+from llm.dsl import *
 import re
 
 INDICATOR_FUNC_MAP = {

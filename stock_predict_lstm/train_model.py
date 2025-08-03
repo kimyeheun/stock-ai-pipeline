@@ -10,8 +10,8 @@ from Model import MaskAwareLSTM
 class TrainingConfig:
     X_PATH = "./data/X_stock.npy"
     Y_PATH = "./data/y_stock.npy"
-    SCALER_PATH = "./models/scaler_masked.pkl"
-    MODEL_PATH = "./models/lstm_classifier.pt"
+    SCALER_PATH = "models/demo/scaler_masked.pkl"
+    MODEL_PATH = "models/demo/lstm_classifier.pt"
     EPOCHS = 100
     BATCH_SIZE = 32
     LEARNING_RATE = 1e-3
