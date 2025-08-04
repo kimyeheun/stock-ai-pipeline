@@ -1,20 +1,23 @@
 import os
 
 import pandas as pd
+from dotenv import load_dotenv
 from fastapi import APIRouter
 from openai import AsyncOpenAI
 
 # 지표 계산
 from api.ai.calc_indicator import add_technical_indicators
-from api.ai.prompt_interpreter import prompt_bifurcation
+from api.ai.prompt_bifurcation import prompt_bifurcation
 from api.schemas import StockInitRequest, StockInitResponse, PromptRequest, PromptResponse, ActionResult
 from api.store import STOCK_DATA_STORE
 
+load_dotenv()
 router = APIRouter()
-client = AsyncOpenAI(base_url="https://gms.ssafy.io/gmsapi/api.openai.com/v1")
+client = AsyncOpenAI(api_key=os.getenv('OPENAI_API_KEY'),
+    base_url="https://gms.ssafy.io/gmsapi/api.openai.com/v1")
 
 
-@router.post("/init", response_model=StockInitResponse)
+@router.post("/ai/init", response_model=StockInitResponse)
 async def stock_init(request: StockInitRequest):
     # 보조 지표 계산 후 저장.
     df = pd.DataFrame({
@@ -34,7 +37,7 @@ async def stock_init(request: StockInitRequest):
     return StockInitResponse(result="ok")
 
 
-@router.post("/prompt", response_model=PromptResponse)
+@router.post("/ai/prompt", response_model=PromptResponse)
 async def stock_prompt(request: PromptRequest):
     room_id = request.roomId
 

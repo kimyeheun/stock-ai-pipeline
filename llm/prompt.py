@@ -1,4 +1,4 @@
-from dsl import *
+from llm.dsl import *
 
 SYSTEM_PROMPT = """
 당신은 금융 및 알고리즘 트레이딩 전략 전문가입니다.

@@ -1,40 +1,11 @@
 import numpy as np
 import pandas as pd
-
+from langchain.chains import SequentialChain
 from llm.dsl_interpreter_2 import dsl_to_code
 from llm.prompt import generate_dsl
 
 
-# 난이도 분류용 함수
-async def classify_difficulty(prompt_text: str, client) -> str:
-    # TODO: 실제 프롬프트 로직으로 변경!!
-    # system_msg = "다음 프롬프트를 난이도별로 '상', '중', '하' 중 하나로만 대답하세요."
-    # response = await client.chat.completions.create(
-    #     model="gpt-4.1",
-    #     messages=[
-    #         {"role": "system", "content": system_msg},
-    #         {"role": "user", "content": prompt_text}
-    #     ]
-    # )
-    # return response.choices[0].message.content.strip()
-    return "상"
-
-# 프롬프트 분기점
-async def prompt_bifurcation(prompt_text: str, stock_df, client):
-    # 1. 프롬프트 난이도 분류
-    difficulty = await classify_difficulty(prompt_text, client)
-    action = []
-    # 2. 난이도가 "상"이 아니면, 처리하지 않음 (확장 가능)
-    if difficulty == "상":
-        action = await professional_level(prompt_text, stock_df, client)
-    elif difficulty == "중 ":
-        action = [] # TODO : 중급 난이도로 변경
-    elif difficulty == "하":
-        action = [] # TODO : 하급 난이도로 변경
-    else:
-        raise NotImplementedError("난이도가 잘못 출력되었습니다. 복구 로직을 실행하세요.")
-    return action
-
+# NOTE: 상
 # 메인 액션 추론 함수 (상 난이도만, stock_df는 OHLCV+지표 DataFrame)
 async def professional_level(prompt_text, stock_df, openai_client):
     # 1. LLM → DSL 파싱
