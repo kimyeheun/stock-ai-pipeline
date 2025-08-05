@@ -52,9 +52,9 @@ def process_and_save_chunks(X_raw, y, feature_list, scaler_path, chunk_size=100_
         X_chunk = np.nan_to_num(X_chunk)
         X_flat = X_chunk.reshape(-1, F)
         X_scaled = scaler.transform(X_flat).reshape(-1, T, F)
-        np.save(os.path.join(save_dir, f"X_{i//chunk_size:03d}.npy"), X_scaled)
+        np.save(os.path.join(save_dir, f"X_{i//chunk_size:03d}.npy"), X_scaled[:end-start])
         np.save(os.path.join(save_dir, f"y_{i//chunk_size:03d}.npy"), y[start:end])
-        np.save(os.path.join(save_dir, f"mask_{i//chunk_size:03d}.npy"), mask_chunk)
+        np.save(os.path.join(save_dir, f"mask_{i//chunk_size:03d}.npy"), mask_chunk[:end-start])
 
 
 def main():
