@@ -1,29 +1,11 @@
 import os
+
 import joblib
-import pandas as pd
 import numpy as np
+import pandas as pd
 from sklearn.preprocessing import StandardScaler
 
-class DataPreProcessingConfig:
-    RAW_DATA_DIR = "./results"
-    DATA_DIR= "./data"
-    MODELS_DIR = "./models"
-    STOCK_DATA_CSV = os.path.join(RAW_DATA_DIR, "stock_data_from_api_kakao.csv")
-    SCALER_PATH = os.path.join(MODELS_DIR, "scaler.pkl")
-    X_PATH = os.path.join(DATA_DIR, "X_stock.npy")
-    Y_PATH = os.path.join(DATA_DIR, "y_stock.npy")
-    COLUMN_MAPPING = {
-        'mkp': 'Open',
-        'hipr': 'High',
-        'lopr': 'Low',
-        'clpr': 'Close',
-        'trqu': 'Volume'
-    }
-    FEATURES = ["Open", "High", "Low", "Close", "Volume",
-                "RSI", "MACD", "MACD_SIGNAL", "BB_UPPER", "BB_LOWER", "MOM", "CCI"]
-    WINDOW_SIZE = 30
-    LABEL_FUTURE_WINDOW = 10
-    LABEL_THRESHOLD = 0.05
+from data_collection.Config import DataPreProcessingConfig
 
 def load_stock_data(file_path: str) -> pd.DataFrame:
     df = pd.read_csv(file_path)
@@ -146,7 +128,7 @@ if __name__ == "__main__":
                                      threshold=config.LABEL_THRESHOLD)
 
     # 4. Prepare sequential features and labels
-    features = config.FEATURES
+    features = config.ALL_FEATURES
     window_size = config.WINDOW_SIZE
     df[features] = df[features].fillna(0)
     X, y = prepare_sequences(df, features, window_size=window_size)
