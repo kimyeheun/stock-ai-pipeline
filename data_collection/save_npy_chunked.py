@@ -11,7 +11,7 @@ from data_collection.Config import DataPreProcessingConfig
 def load_data(x_path, y_path):
     return np.load(x_path), np.load(y_path)
 
-def save_chunked(X, y, mask, chunk_size=100_000, save_dir="./data/split_data"):
+def save_chunked(X, y, mask, chunk_size=100_000, save_dir="./data/split_data2"):
     os.makedirs(save_dir, exist_ok=True)
     N = X.shape[0]
     num_chunks = (N + chunk_size - 1) // chunk_size
