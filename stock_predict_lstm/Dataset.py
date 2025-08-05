@@ -4,7 +4,6 @@ from torch.utils.data import Dataset
 
 class NpyDataset(Dataset):
     def __init__(self, X_path, mask_path, y_path):
-        # np.load with mmap_mode='r' → RAM에 전체를 올리지 않고 인덱스 접근시만 로딩
         self.X = np.load(X_path, mmap_mode='r')
         self.mask = np.load(mask_path, mmap_mode='r')
         self.y = np.load(y_path, mmap_mode='r')

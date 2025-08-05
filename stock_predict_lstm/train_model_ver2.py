@@ -1,30 +1,17 @@
+# NOTE: Buf Data Training Code
+
+import joblib
+import numpy as np
 import torch
 import torch.nn as nn
-import numpy as np
-import joblib
-from sklearn.preprocessing import StandardScaler
 import wandb
-from Model import MaskAwareLSTM
+from sklearn.preprocessing import StandardScaler
 from torch.utils.data import TensorDataset, DataLoader
 from tqdm import tqdm
+
 from Dataset import NpyDataset
-
-
-class TrainingConfig:
-    X_PATH = "../data_collection/data/X_stock.npy"
-    Y_PATH = "../data_collection/data/y_stock.npy"
-    SCALER_PATH = "../data_collection/models/scaler.pkl"
-    MODEL_PATH = "models/lstm_classifier.pt"
-    EPOCHS = 100
-    BATCH_SIZE = 32
-    LEARNING_RATE = 1e-3
-    CLIP_GRAD_NORM = 1.0
-    TEST_SIZE = 0.2
-    SHUFFLE_DATA = True
-
-    PRICE_FEATURES = ["Open", "High", "Low", "Close", "Volume"]
-    INDICATOR_FEATURES = ["RSI", "MACD", "MACD_SIGNAL", "BB_UPPER", "BB_LOWER", "MOM", "CCI"]
-    ALL_FEATURES = PRICE_FEATURES + INDICATOR_FEATURES
+from Model import MaskAwareLSTM
+from stock_predict_lstm.Config import TrainingConfig
 
 
 def load_data(x_path, y_path):

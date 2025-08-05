@@ -1,28 +1,12 @@
+import joblib
+import numpy as np
 import torch
 import torch.nn as nn
-import numpy as np
-import joblib
-from sklearn.preprocessing import StandardScaler
 import wandb
+from sklearn.preprocessing import StandardScaler
+
 from Model import MaskAwareLSTM
-
-
-class TrainingConfig:
-    X_PATH = "./data/X_stock.npy"
-    Y_PATH = "./data/y_stock.npy"
-    SCALER_PATH = "models/demo/scaler_masked.pkl"
-    MODEL_PATH = "models/demo/lstm_classifier.pt"
-    EPOCHS = 100
-    BATCH_SIZE = 32
-    LEARNING_RATE = 1e-3
-    CLIP_GRAD_NORM = 1.0
-    TEST_SIZE = 0.2
-    SHUFFLE_DATA = True
-    SELECTED_FEATURES = ["Open", "High", "Low", "Close", "Volume", "RSI", "MACD", "BB_UPPER", "BB_LOWER", "MOM", "CCI"]
-
-class DataPreProcessingConfig:
-    FEATURES = ["Open", "High", "Low", "Close", "Volume",
-                "RSI", "MACD", "MACD_SIGNAL", "BB_UPPER", "BB_LOWER", "MOM", "CCI"]
+from stock_predict_lstm.Config import TrainingConfigBefore as TrainingConfig
 
 
 def load_data(x_path, y_path):
@@ -111,7 +95,7 @@ def save_model(model, path):
 if __name__ == "__main__":
     # 1. Load Data
     X, y = load_data(TrainingConfig.X_PATH, TrainingConfig.Y_PATH)
-    X = mask_features(X, DataPreProcessingConfig.FEATURES, TrainingConfig.SELECTED_FEATURES)
+    X = mask_features(X, TrainingConfig.ALL_FEATURES, TrainingConfig.ALL_FEATURES)
 
     scaler = StandardScaler()
     X = scaler.fit_transform(X.reshape(-1, X.shape[2])).reshape(X.shape)
@@ -154,7 +138,7 @@ if __name__ == "__main__":
             "model": "MaskAwareLSTM",
             "input_dim": input_dim,
             "output_dim": output_dim,
-            "selected_features": TrainingConfig.SELECTED_FEATURES,
+            "selected_features": TrainingConfig.ALL_FEATURES,
         }
     )
 
