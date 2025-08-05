@@ -1,42 +1,47 @@
 # NOTE: 프롬프트 분기점
-from typing import List
+import re
+from typing import List, Any, Coroutine
 
-from langchain_core.prompts import PromptTemplate
 from langchain.chains import LLMChain, SequentialChain
-from langchain_huggingface import HuggingFacePipeline
+from langchain_core.prompts import PromptTemplate
+from langchain_ollama import ChatOllama
 
 from api.ai.prompt_interpreter import professional_level
 
 
 # 상 중 하 분류 후 각 코드로 분기
-async def classify_difficulty(prompt_text: str) -> str:
-    # hf_model = pipeline("text-generation", model="deepseek-ai/DeepSeek-V3")
-    # llm = HuggingFaceLLM(pipeline=hf_model)
-    llm = HuggingFacePipeline.from_model_id(
-        model_id="deepseek-ai/deepseek-llm-7b-base",
-        task="text-generation",
-        device_map="cuda"
+async def classify_difficulty(prompt_text: str) -> int:
+    llm = ChatOllama(
+        model="llama3.2",
+        mirostat=1,
     )
-    # 프롬프트 설정 및 파이프라인 실행
-    template = PromptTemplate(input_variables=["prompt_text"],
-                              template="""아래 주식 전략을
-1: 감각적, 지표 없음
-2: 지표 언급
-3: 복합 조건/트레이딩 로직
-중 하나로 분류. 숫자만 답해
-문장: {prompt_text}""")
-    story_chain = LLMChain(llm=llm, prompt_template=template)
+    template = PromptTemplate(
+        input_variables=["prompt_text"],
+        template="""아래 명령을 보고 0, 1, 2로 분류해라. 반드시 숫자만 답하라.
+- 0: 매매 기준이 없음 + 감각적 표현, 지표 없음, 매매 책임을 타인에게 위임하거나, 전문가라도 스스로 매매 판단을 포기함
+- 1: 매매 기준이 있음 + 지표 언급, 단일 기준
+- 2: 매매 기준이 있음 + 복합 기준, 여러 지표 조합
+주의 해야 할 점은, 매매 기준이 없으면 무조건 0이라는거야. 
+예시:
+내려갈 것 같으면 사지 마. 오를 때 들어가줘. : 0
+나는 MACD, RSI 같은거 잘 모르겠으니까 알아서 사줘 : 0
+MACD 골든크로스 예상되니 선매수. 데드크로스 나오면 바로 매도. : 1
+MACD 골든크로스 발생 직후에 진입. 볼린저밴드 상단 닿으면 일부 익절, 반전 시 전량 매도. : 2
 
-    # 파이프라인 실행
-    result = story_chain.run(prompt_text=prompt_text)
+{prompt_text} : """)
 
-    # 여러 체인을 연결한 확장 가능한 파이프라인
-    # chain1 = LLMChain(llm=llm, prompt_template=PromptTemplate.from_template("Describe {topic}"))
-    # chain2 = LLMChain(llm=llm, prompt_template=PromptTemplate.from_template("Summarize the description of {topic}"))
-    # # 순차적으로 체인 연결
-    # sequential_chain = SequentialChain(chains=[chain1, chain2])
+    chain = template | llm
+    result = chain.invoke({"prompt_text": prompt_text}).content
     print(result)
-    return result
+
+    m = re.search(r'\b([0-2])\b', result)
+    if m:
+        return int(m.group(1))
+    m2 = re.search(r'([0-2])', result)
+    if m2:
+        return int(m2.group(1))
+    # raise ValueError(f"정상적인 0, 1, 2 답변이 아닙니다: {result!r}")
+    return 0
 
 
 # 프롬프트 분기점
