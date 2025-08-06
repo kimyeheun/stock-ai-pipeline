@@ -4,7 +4,7 @@ class DataPreProcessingConfig:
     DATA_DIR= "./data"
 
     MODELS_DIR = "./models"
-    SPLIT_PATH = os.path.join(DATA_DIR, "split_data")
+    SPLIT_PATH = os.path.join(DATA_DIR, "split_data_masked")
     RAW_DATA_DIR = "./results"
 
     SCALER_PATH = os.path.join(MODELS_DIR, "scaler.pkl")

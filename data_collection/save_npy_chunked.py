@@ -11,24 +11,11 @@ from data_collection.Config import DataPreProcessingConfig
 def load_data(x_path, y_path):
     return np.load(x_path), np.load(y_path)
 
-def save_chunked(X, y, mask, chunk_size=100_000, save_dir="./data/split_data2"):
-    os.makedirs(save_dir, exist_ok=True)
-    N = X.shape[0]
-    num_chunks = (N + chunk_size - 1) // chunk_size
-
-    for i in tqdm(range(num_chunks), decs="save chunks"):
-        start = i * chunk_size
-        end = min((i + 1) * chunk_size, N)
-        np.save(os.path.join(save_dir, f"X_{i:03d}.npy"), X[start:end])
-        np.save(os.path.join(save_dir, f"y_{i:03d}.npy"), y[start:end])
-        np.save(os.path.join(save_dir, f"mask_{i:03d}.npy"), mask[start:end])
-        print(f"Saved chunk {i+1}/{num_chunks}: [{start}:{end}]")
-
 def mask_features(X, all_features, selected_features):
     idx = [all_features.index(f) for f in selected_features]
     return X[:, :, idx]
 
-def process_and_save_chunks(X_raw, y, feature_list, scaler_path, chunk_size=100_000, save_dir="./data/split_data"):
+def process_and_save_chunks(X_raw, y, feature_list, scaler_path, chunk_size=100_000, save_dir="./data/split_data_buf"):
     os.makedirs(save_dir, exist_ok=True)
     N, T, F = X_raw.shape
 

@@ -2,7 +2,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from dataset_preprocessing import DataPreProcessingConfig  # 경로에 따라 조정
+from Config import DataPreProcessingConfig  # 경로에 따라 조정
 
 
 def plot_label_distribution(y: np.ndarray):
@@ -18,11 +18,10 @@ def plot_label_distribution(y: np.ndarray):
 
 
 if __name__ == "__main__":
-    config = DataPreProcessingConfig
-    X_path = config.X_PATH
+    X_path = DataPreProcessingConfig.X_PATH
     X = np.load(X_path)
     print(f"Loaded features shape: {X.shape}")  # (N, T, F)
-    y_path = config.Y_PATH
+    y_path = DataPreProcessingConfig.Y_PATH
 
     # 라벨 데이터 불러오기
     if not os.path.exists(y_path):
