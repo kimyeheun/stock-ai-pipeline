@@ -100,7 +100,7 @@ if __name__ == "__main__":
     scaler = StandardScaler()
     X = scaler.fit_transform(X.reshape(-1, X.shape[2])).reshape(X.shape)
 
-    # 4. Save masked scaler
+    # 4. Save scaler
     joblib.dump(scaler, TrainingConfig.SCALER_PATH)
 
     # Determine input and output dimensions from result

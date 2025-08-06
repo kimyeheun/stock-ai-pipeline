@@ -3,8 +3,8 @@ class TrainingConfigBefore:
     X_PATH = "./data/X_stock.npy"
     Y_PATH = "./data/y_stock.npy"
 
-    SCALER_PATH = "models/demo/scaler_masked.pkl"
-    MODEL_PATH = "models/demo/lstm_classifier.pt"
+    SCALER_PATH = "models/scaler_masked.pkl"
+    MODEL_PATH = "models/lstm_classifier.pt"
     EPOCHS = 100
     BATCH_SIZE = 32
     LEARNING_RATE = 1e-3
@@ -24,7 +24,7 @@ class TrainingConfig:
     SCALER_PATH = "../data_collection/models/scaler.pkl"
     # AFTER
     SPLIT_PATH = "../data_collection/data/split_data"
-    MODEL_PATH = "models/lstm_classifier.pt"
+    MODEL_PATH = "../lstm_test/models/lstm_classifier.pt"
 
     EPOCHS = 100
     BATCH_SIZE = 32

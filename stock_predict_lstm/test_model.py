@@ -8,7 +8,7 @@ import talib
 import torch
 
 from Model import MaskAwareLSTM
-from train_model_ver2 import TrainingConfig
+from Config import TrainingConfig
 
 
 def load_csv(file_path):
@@ -28,6 +28,7 @@ def load_csv(file_path):
     # 컬럼명 매핑 (open/high/low/volume)
     stock_data['open'] = stock_data['mkp']
     stock_data['high'] = stock_data['hipr']
+    stock_data['low'] = stock_data['lopr']
     stock_data['low'] = stock_data['lopr']
     stock_data['volume'] = stock_data['trqu']
 
@@ -157,7 +158,7 @@ def strategy_rsi_rebound_model_based(stock_data, x_axis, indicators, model, scal
             in_trade = True
             trades += 1
             buy_markers.append(dict(
-                x=x_axis.iloc[i],
+                x=x_axis.iloc[i] if hasattr(x_axis, "iloc") else x_axis[i],
                 y=price,
                 text=f"Buy(Model): {price:.2f}<br>RSI반등+모델Buy",
                 type='buy'
@@ -169,7 +170,7 @@ def strategy_rsi_rebound_model_based(stock_data, x_axis, indicators, model, scal
             trades += 1
             profit = cash - portfolio
             sell_markers.append(dict(
-                x=x_axis.iloc[i],
+                x=x_axis.iloc[i] if hasattr(x_axis, "iloc") else x_axis[i],
                 y=price,
                 text=f"Sell(Model): {price:.2f} (RSI>=70)<br>Profit: {profit:.2f}",
                 type='sell'
@@ -213,7 +214,6 @@ def strategy_model_based(stock_data, x_axis, model, scaler, window_size=30):
             idx = selected_features.index(feat.lower())
             m[:, idx] = 1.0
         mask.append(m)
-
         valid_idx.append(i)
 
     X = np.array(X)
@@ -280,7 +280,7 @@ def strategy_model_based(stock_data, x_axis, model, scaler, window_size=30):
     }
 
 
-def create_comparison_chart_model(stock_data, x_axis, indicators, rule_result, model_result):
+def create_comparison_chart_model(stock_data, x_axis, rule_result, model_result):
     fig = go.Figure()
 
     # 가격
@@ -347,10 +347,10 @@ if __name__ == '__main__':
     model = MaskAwareLSTM(input_dim=len(selected_features), hidden_dim=64, output_dim=3, num_layers=2, dropout=0.3).to(device)
 
     # state_dict와 scaler 경로 확인!
-    state_dict = torch.load("./models/lstm_classifier.pt", map_location=device)
+    state_dict = torch.load("../lstm_test/models/lstm_classifier.pt", map_location=device)
     print("state_dict keys:", list(state_dict.keys())[:10])
 
-    scaler = joblib.load("./models/scaler_masked.pkl")
+    scaler = joblib.load("../lstm_test/models/scaler.pkl")
     model.load_state_dict(state_dict)
     print("selected_features:", selected_features)
     print("scaler.mean_[:5]:", scaler.mean_[:5])
@@ -359,7 +359,7 @@ if __name__ == '__main__':
     model_result = strategy_rsi_rebound_model_based(stock_data, x_axis, indicators, model, scaler, window_size=30)
     model_only_result = strategy_model_based(stock_data, x_axis, model, scaler, window_size=30)
 
-    create_comparison_chart_model(stock_data, x_axis, indicators, rule_result, model_only_result)
+    create_comparison_chart_model(stock_data, x_axis, rule_result, model_result)
 
     end = time.time()
     print("Total elapsed:", end - start)
