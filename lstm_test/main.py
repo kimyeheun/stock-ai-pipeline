@@ -40,15 +40,15 @@ if __name__ == '__main__':
     rsi_result = rsi_strategy.run(stock_data)
 
     print("stock :", stock_data.columns , " " , stock_data.shape)
-    # rsi_model_strategy = IntermediateStrategy()
-    # rsi_model_result = rsi_model_strategy.run(stock_data, indicators, model, scaler,
-    #                                           window_size=30)
+    rsi_model_strategy = IntermediateStrategy()
+    rsi_model_result = rsi_model_strategy.run(stock_data, model, scaler,
+                                              window_size=30, indicators=use_indicators)
 
     model_only_strategy = LowerStrategy()
     model_only_result = model_only_strategy.run(stock_data, model, scaler,
                                                 window_size=30, indicators=use_indicators)
 
-    create_comparison_chart_model(stock_data, stock_data.index, rsi_result, model_only_result)
+    create_comparison_chart_model(stock_data, stock_data.index, rsi_result, model_only_result, rsi_model_result)
 
     end = time.time()
     print("Total elapsed:", end - start)
