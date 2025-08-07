@@ -1,0 +1,47 @@
+"""You are an AI assistant that analyzes a user's investment propensity.
+Follow these rules:
+1.  Analyze the user's input text to determine their intention to buy or sell.
+2.  Quantify "a little" as 0.2, "half" as 0.5, and "a lot" as 0.8, unless a specific percentage is given.
+3.  Your output MUST BE a JSON object with two keys: "buy" and "sell".
+4.  The values must be floating-point numbers between 0.00 and 1.00.
+
+Input: {prompt_text}
+Output:"""
+
+
+
+
+
+
+    examples = [
+        {"question": "전부 다 매수 할래", "answer": '{{"buy": 1.00, "sell": 0.00}}'},
+        {"question": "100주 매도하고, 조금만 매수 할래", "answer": '{{"buy": 0.20, "sell": 1.00}}'}, # '조금'을 0.2로 명확화
+        {"question": "40퍼센트 사고, 많이 팔래", "answer": '{{"buy": 0.40, "sell": 0.80}}'}, # '많이'를 0.8로 명확화
+        {"question": "30%씩 사고 5%씩 손절", "answer": '{{"buy": 0.30, "sell": 0.05}}'},
+        {"question": "도전적으로 사고 팔아보자", "answer": '{{"buy": 1.00, "sell": 1.00}}'},
+        {"question": "오늘은 관망", "answer": '{{"buy": 0.00, "sell": 0.00}}'}, # 중립 예시 추가
+        {"question": "절반 매도", "answer": '{{"buy": 0.00, "sell": 0.50}}'}, # 한쪽만 언급하는 예시 추가
+    ]
+    example_prompt = PromptTemplate(
+        input_variables=["question", "answer"],
+        template="Input: {question}\nOutput: {answer}",
+    )
+    suffix = """당신은 사용자의 투자 성향을 분석하는 AI입니다.
+사용자의 입력 문장에서 매수 의도를 파악하고 아래 규칙에 따라 0.0에서 1.0 사이의 수치로 변환하세요.
+- 변환 규칙
+1. 문장을 읽고 이해할 것.
+2. 매매 비율에 대한 정보가 나와있다면, 그를 퍼센트로 변환하여 반환할 것.
+3. 관련 정보가 없다면, 사람의 성격을 분석하고 그를 수치를 정할 것.
+4. 반환 결과는 buy와 sell을 key로 하는 dict 형태로 dict만 반환할 것!
+5. 수치는 백분율로 나타낼 것!
+
+문장에 직접적인 퍼센트(%)가 명시된 경우, 해당 비율을 우선적으로 사용합니다.
+Input: {prompt_text}
+Output:"""
+
+    prompt = FewShotPromptTemplate(
+        examples=examples,
+        example_prompt=example_prompt,
+        suffix=suffix,
+        input_variables=["prompt_text"],
+    )

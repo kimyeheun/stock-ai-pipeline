@@ -32,6 +32,8 @@ class PromptRequest(BaseModel):
 
 class ActionResult(BaseModel):
     userId: int
+    buy: float
+    sell: float
     action: List[int]
 
 class PromptResponse(BaseModel):
