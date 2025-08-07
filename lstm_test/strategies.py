@@ -116,7 +116,6 @@ class IntermediateStrategy(BaseStrategy):
     #                 type='sell'
     #             ))
     #     return self.result(stock_data)
-
     def run(self, stock_data, model, scaler, window_size=30, indicators=None, **kwargs):
         self.reset()
 

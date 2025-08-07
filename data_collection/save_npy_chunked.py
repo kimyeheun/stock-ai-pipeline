@@ -11,6 +11,8 @@ from data_collection.Config import DataPreProcessingConfig
 def load_data(x_path, y_path):
     return np.load(x_path), np.load(y_path)
 
+# TODO: mask 0개 ~ 2개 정도의 마스킹 설정하기!
+'''주의 사항은, partial_fit을 계산할 때 마스크랑 transform할때의 마스크가 같아야 한다는 것!'''
 def mask_features(X, all_features, selected_features):
     idx = [all_features.index(f) for f in selected_features]
     return X[:, :, idx]

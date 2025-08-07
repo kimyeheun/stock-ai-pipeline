@@ -215,7 +215,7 @@ def parse_entry_or_exit(entry_json: Dict[str, Any]) -> EntryOrExit:
     return EntryOrExit(
         root_condition=root_condition,
         action=entry_json["action"],
-        position_size=entry_json.get("position_size", 1.0),
+        position_size=entry_json.get("", 1.0),
         comment=entry_json.get("comment")
     )
 
