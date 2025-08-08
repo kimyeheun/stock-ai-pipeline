@@ -2,7 +2,7 @@ import time
 
 import joblib
 
-from Model import MaskAwareLSTM
+from Model import MaskAwareLSTM, MaskAwareTCNTransformer # MaskAwareLSTM, MaskAwareTCNTransformer
 from calc_indicator import add_technical_indicators, ensure_all_features_exist
 from data_collection.Config import DataPreProcessingConfig
 from strategies import *
@@ -29,6 +29,13 @@ if __name__ == '__main__':
     # MaskAwareLSTM의 인자: input_dim, hidden_dim, num_layers=2, dropout=0.3
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = MaskAwareLSTM(input_dim=len(TestConfig.ALL_FEATURES), hidden_dim=64, output_dim=3, num_layers=2, dropout=0.3).to(device)
+    # model = MaskAwareTCNTransformer(
+    #     input_dim=len(TestConfig.ALL_FEATURES), hidden_dim=64, output_dim=3,
+    #     tcn_channels=128, tcn_kernel_size=5,
+    #     tcn_drop=0.1, tcn_dilations=(1, 2, 4, 8),
+    #     d_model=128, nhead=4, num_transformer_layers=2,
+    #     transformer_drop=0.1, mlp_hidden=128, mlp_drop=0.2,
+    # ).to(device)
 
     # state_dict와 scaler 경로 확인!
     state_dict = torch.load(TestConfig.MODEL_PATH, map_location=device)

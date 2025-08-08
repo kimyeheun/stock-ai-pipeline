@@ -9,23 +9,23 @@ def create_comparison_chart_model(stock_data, x_axis, rule_result, model_result,
     fig.add_trace(go.Scatter(x=x_axis, y=stock_data["Close"], mode='lines', name='close', line=dict(color='black')))
 
     # Buy/Sell marker: 규칙(초록/빨강), 모델단독(파랑/주황)
-    for marker in rule_result["buy"]:
-        fig.add_trace(go.Scatter(x=[marker['x']], y=[marker['y']], mode='markers+text', name='Buy(Rule)',
-                                 marker=dict(symbol='triangle-up', size=13, color='green'),
-                                 text=["Buy"], hovertext=marker['text'], hoverinfo="text"))
-    for marker in rule_result["sell"]:
-        fig.add_trace(go.Scatter(x=[marker['x']], y=[marker['y']], mode='markers+text', name='Sell(Rule)',
-                                 marker=dict(symbol='triangle-down', size=13, color='red'),
-                                 text=["Sell"], hovertext=marker['text'], hoverinfo="text"))
+    # for marker in rule_result["buy"]:
+    #     fig.add_trace(go.Scatter(x=[marker['x']], y=[marker['y']], mode='markers+text', name='Buy(Rule)',
+    #                              marker=dict(symbol='triangle-up', size=13, color='green'),
+    #                              text=["Buy"], hovertext=marker['text'], hoverinfo="text"))
+    # for marker in rule_result["sell"]:
+    #     fig.add_trace(go.Scatter(x=[marker['x']], y=[marker['y']], mode='markers+text', name='Sell(Rule)',
+    #                              marker=dict(symbol='triangle-down', size=13, color='red'),
+    #                              text=["Sell"], hovertext=marker['text'], hoverinfo="text"))
 
-    # for marker in model_result["buy"]:
-    #     fig.add_trace(go.Scatter(x=[marker['x']], y=[marker['y']], mode='markers+text', name='Buy(Model Only)',
-    #                              marker=dict(symbol='circle', size=10, color='blue'),
-    #                              text=["Buy(MO)"], hovertext=marker['text'], hoverinfo="text"))
-    # for marker in model_result["sell"]:
-    #     fig.add_trace(go.Scatter(x=[marker['x']], y=[marker['y']], mode='markers+text', name='Sell(Model Only)',
-    #                              marker=dict(symbol='x', size=13, color='orange'),
-    #                              text=["Sell(MO)"], hovertext=marker['text'], hoverinfo="text"))
+    for marker in model_result["buy"]:
+        fig.add_trace(go.Scatter(x=[marker['x']], y=[marker['y']], mode='markers+text', name='Buy(Model Only)',
+                                 marker=dict(symbol='circle', size=10, color='blue'),
+                                 text=["Buy(MO)"], hovertext=marker['text'], hoverinfo="text"))
+    for marker in model_result["sell"]:
+        fig.add_trace(go.Scatter(x=[marker['x']], y=[marker['y']], mode='markers+text', name='Sell(Model Only)',
+                                 marker=dict(symbol='x', size=13, color='orange'),
+                                 text=["Sell(MO)"], hovertext=marker['text'], hoverinfo="text"))
 
     if hybrid_result is not None:
         for marker in hybrid_result["buy"]:
@@ -34,7 +34,7 @@ def create_comparison_chart_model(stock_data, x_axis, rule_result, model_result,
                                      text=["Buy(MO)"], hovertext=marker['text'], hoverinfo="text"))
         for marker in hybrid_result["sell"]:
             fig.add_trace(go.Scatter(x=[marker['x']], y=[marker['y']], mode='markers+text', name='Sell(Hybrid)',
-                                     marker=dict(symbol='star', size=12, color='black'),
+                                     marker=dict(symbol='star', size=12, color='cyan'),
                                      text=["Sell(MO)"], hovertext=marker['text'], hoverinfo="text"))
 
     if hasattr(x_axis, "iloc"):

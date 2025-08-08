@@ -1,5 +1,5 @@
 class TestConfig:
-    MODEL_PATH = "./models/lstm_classifier.pt"
+    MODEL_PATH = "./models/lstm_classifier_bt128.pt"
     SCALER_PATH = "./models/scaler.pkl"
     FILE_PATH = "./raw_data/stock_data_from_api_kakao.csv"
 
