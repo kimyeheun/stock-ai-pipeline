@@ -1,0 +1,201 @@
+# NOTE: Buf Data Training Code
+
+import joblib
+import numpy as np
+import torch
+import torch.nn as nn
+import wandb
+from sklearn.preprocessing import StandardScaler
+from torch.utils.data import TensorDataset, DataLoader
+from tqdm import tqdm
+
+from Dataset import NpyDataset
+from Model import MaskAwareLSTM
+from lstm_train.Config import TrainingConfig
+
+
+def load_data(x_path, y_path):
+    return np.load(x_path), np.load(y_path)
+
+def mask_features(X, all_features, selected_features):
+    idx = [all_features.index(f) for f in selected_features]
+    return X[:, :, idx]
+
+def split_data(X, y, test_size=0.2, shuffle=True):
+    N = X.shape[0]
+    indices = np.arange(N)
+    if shuffle:
+        np.random.shuffle(indices)
+    split = int(N * (1 - test_size))
+    train_idx, val_idx = indices[:split], indices[split:]
+    return X[train_idx], X[val_idx], y[train_idx], y[val_idx]
+
+def create_dataloaders(X_train, mask_train, y_train, X_val, mask_val, y_val, batch_size=32):
+    train_ds = TensorDataset(
+        torch.tensor(X_train, dtype=torch.float32),
+        torch.tensor(mask_train, dtype=torch.float32),
+        torch.tensor(y_train, dtype=torch.long)
+    )
+    val_ds = TensorDataset(
+        torch.tensor(X_val, dtype=torch.float32),
+        torch.tensor(mask_val, dtype=torch.float32),
+        torch.tensor(y_val, dtype=torch.long)
+    )
+    return (
+        DataLoader(train_ds, batch_size=batch_size, shuffle=True),
+        DataLoader(val_ds, batch_size=batch_size, shuffle=False)
+    )
+
+def initialize_model(input_dim, output_dim, device, hidden_dim=64):
+    model = MaskAwareLSTM(input_dim, hidden_dim, output_dim).to(device)
+    criterion = nn.CrossEntropyLoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=TrainingConfig.LEARNING_RATE)
+    return model, criterion, optimizer
+
+def train_and_validate_model(model, train_loader, val_loader, criterion, optimizer, epochs, device, clip_grad_norm=1.0):
+    for epoch in range(epochs):
+        model.train()
+        total_loss, total_correct, total_count = 0, 0, 0
+        for xb, mask, yb in train_loader:
+            xb, mask, yb = xb.to(device), mask.to(device), yb.to(device)
+            optimizer.zero_grad()
+            out = model(xb, mask)
+            loss = criterion(out, yb)
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), clip_grad_norm)
+            optimizer.step()
+            total_loss += loss.item() * xb.size(0)
+            total_correct += (out.argmax(1) == yb).sum().item()
+            total_count += xb.size(0)
+        train_acc = total_correct / total_count
+        avg_loss = total_loss / total_count
+
+        # Validation
+        model.eval()
+        val_loss, val_correct, val_count = 0, 0, 0
+        with torch.no_grad():
+            for xb, mask, yb in val_loader:
+                xb, mask, yb = xb.to(device), mask.to(device), yb.to(device)
+                out = model(xb, mask)
+                print(out)
+                print(yb)
+                loss = criterion(out, yb)
+                val_loss += loss.item() * xb.size(0)
+                val_correct += (out.argmax(1) == yb).sum().item()
+                val_count += xb.size(0)
+        val_acc = val_correct / val_count
+        val_loss = val_loss / val_count
+
+        print(f"Epoch {epoch+1}: train_loss={avg_loss:.4f}, train_acc={train_acc:.4f}, val_loss={val_loss:.4f}, val_acc={val_acc:.4f}")
+        wandb.log({"train/loss": avg_loss, "train/acc": train_acc, "val/loss": val_loss, "val/acc": val_acc, "epoch": epoch+1})
+
+def save_model(model, path):
+    torch.save(model.state_dict(), path)
+    print(f"Model saved to {path}")
+
+
+
+if __name__ == "__main__":
+    # 1. Load Data
+    X_raw, y = load_data(TrainingConfig.X_PATH, TrainingConfig.Y_PATH)
+    print(X_raw.shape)
+    print(y.shape)
+    print(len(TrainingConfig.ALL_FEATURES) == X_raw.shape[2])
+    
+    # 2. Feature selection
+    X = np.empty_like(X_raw)
+    mask = np.empty_like(X_raw, dtype=np.float32)
+
+    batch_size = 100_000
+    N = X_raw.shape[0]
+
+    for i in tqdm(range(0, N, batch_size), desc="Feature masking"):
+        # feature selection (mask_features가 슬라이싱 지원 가정)
+        X[i:i + batch_size] = mask_features(
+            X_raw[i:i + batch_size],
+            TrainingConfig.ALL_FEATURES,
+            TrainingConfig.ALL_FEATURES
+        )
+        # mask 생성
+        mask[i:i + batch_size] = mask_features(
+            ~np.isnan(X_raw[i:i + batch_size]),
+            TrainingConfig.ALL_FEATURES,
+            TrainingConfig.ALL_FEATURES
+        ).astype(np.float32)
+
+    print("End Masking")
+
+    # 4. Scaling
+    # ===============================================
+    scaler = StandardScaler()
+
+    X = X.astype(np.float32)
+    N, T, F = X.shape
+    batch_size = 100
+
+    # 1. fit (배치별로)
+    for i in tqdm(range(0, N, batch_size), desc="Scaler partial_fit"):
+        X_batch = X[i:i + batch_size].reshape(-1, F)
+        scaler.partial_fit(X_batch)
+
+    # 2. transform (배치별로)
+    X_scaled = np.empty_like(X)
+    for i in tqdm(range(0, N, batch_size), desc="Scaler transform"):
+        X_batch = X[i:i + batch_size].reshape(-1, F)
+        X_scaled_batch = scaler.transform(X_batch).reshape(-1, T, F)
+        X_scaled[i:i + batch_size] = X_scaled_batch
+
+    joblib.dump(scaler, TrainingConfig.SCALER_PATH)
+
+    np.save("./train_data/X_scaled.npy", X_scaled)
+    np.save("./train_data/mask.npy", mask)
+    np.save("./train_data/y.npy", y)
+    del X_scaled, mask, y
+    # ===============================================
+
+    # 5. Split
+    X_train, X_val, y_train, y_val = split_data(X, y, test_size=TrainingConfig.TEST_SIZE, shuffle=TrainingConfig.SHUFFLE_DATA)
+    mask_train, mask_val, _, _ = split_data(mask, y, test_size=TrainingConfig.TEST_SIZE, shuffle=TrainingConfig.SHUFFLE_DATA)
+    print("학습셋 라벨 분포:", np.bincount(y_train.astype(int)))
+
+    np.save("./train_data/X_train.npy", X_train)
+    np.save("./train_data/mask_train.npy", mask_train)
+    np.save("./train_data/y_train.npy", y_train)
+    np.save("./train_data/X_val.npy", X_val)
+    np.save("./train_data/mask_val.npy", mask_val)
+    np.save("./train_data/y_val.npy", y_val)
+    del X_train, mask_train, y_train, X_val, mask_val, y_val
+
+    # 6. DataLoader
+    train_dataset = NpyDataset("X_train.npy", "mask_train.npy", "y_train.npy")
+    val_dataset = NpyDataset("X_val.npy", "mask_val.npy", "y_val.npy")
+    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False)
+    # train_loader, val_loader = create_dataloaders(X_train, mask_train, y_train, X_val, mask_val, y_val, batch_size=TrainingConfig.BATCH_SIZE)
+
+    # 7. Model Init
+    input_dim = X.shape[2]
+    output_dim = len(np.unique(y))
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model, criterion, optimizer = initialize_model(input_dim, output_dim, device)
+
+    # 8. wandb
+    wandb.init(
+        project="lstm-stock",
+        config={
+            "epochs": TrainingConfig.EPOCHS,
+            "batch_size": TrainingConfig.BATCH_SIZE,
+            "learning_rate": TrainingConfig.LEARNING_RATE,
+            "clip_grad_norm": TrainingConfig.CLIP_GRAD_NORM,
+            "model": "MaskAwareLSTM",
+            "input_dim": input_dim,
+            "output_dim": output_dim,
+            "selected_features": TrainingConfig.ALL_FEATURES,
+        }
+    )
+
+    # 9. Train
+    train_and_validate_model(model, train_loader, val_loader, criterion, optimizer, TrainingConfig.EPOCHS, device, TrainingConfig.CLIP_GRAD_NORM)
+
+    # 10. Save
+    save_model(model, TrainingConfig.MODEL_PATH)
